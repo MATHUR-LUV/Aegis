@@ -1,0 +1,65 @@
+# This is the master control file for the Aegis project.
+# It launches our entire infrastructure stack.
+# Run this file first with: docker-compose up -d
+
+version: '3.8'
+
+services:
+  # 1. Zookeeper (Kafka Dependency)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  # 2. Kafka (Event Bus)
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092" # Port for services *inside* Docker
+      - "29092:29092" # Port for our host machine (e.g., DBeaver)
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+  # 3. Postgres (Application Database)
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    environment:
+      POSTGRES_USER: aegis_user
+      POSTGRES_PASSWORD: aegis_password
+      POSTGRES_DB: aegis_db
+    ports:
+      - "5432:5432" # Expose to our host machine
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  # 4. Elasticsearch (RAG Knowledge Base)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.4
+    container_name: elasticsearch
+    environment:
+      - "discovery.type=single-node"
+      - "xpack.security.enabled=false" # Disable security for easy local dev
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" # Limit memory usage
+    ports:
+      - "9200:9200" # REST API port
+    volumes:
+      - elastic-data:/usr/share/elasticsearch/data
+
+# Define persistent volumes
+volumes:
+  postgres-data:
+  elastic-data:
+
