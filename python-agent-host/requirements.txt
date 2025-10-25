@@ -1,0 +1,19 @@
+grpcio
+grpcio-tools
+ollama
+protobuf
+
+
+
+
+# gRPC libraries
+
+# grpcio
+# grpcio-tools
+# protobuf
+
+# Web server & LLM client
+
+# fastapi
+# uvicorn
+# ollama

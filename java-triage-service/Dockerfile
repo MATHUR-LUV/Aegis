@@ -1,36 +1,38 @@
-# Use a slim, official OpenJDK 17 image
-FROM eclipse-temurin:17-jdk-jammy AS builder
 
-# Set the working directory
+# --- STAGE 1: Build the application ---
+FROM eclipse-temurin:17-jdk-jammy as builder
 WORKDIR /app
 
-# Copy the gradle wrapper and build files
+# Copy the Gradle wrapper
 COPY gradlew .
 COPY gradle ./gradle
+
+# Copy the build files
 COPY build.gradle .
 COPY settings.gradle .
-
-# Download dependencies
-RUN ./gradlew build -x test --no-daemon
 
 # Copy the source code
 COPY src ./src
 
+# --- THIS IS THE FIX ---
+# We must also copy the proto directory
+COPY proto ./proto
+
+# --- END OF FIX ---
+
 # Build the application
+# This will compile the code and create the executable jar
 RUN ./gradlew build -x test --no-daemon
 
-
-# --- Final Image ---
+# --- STAGE 2: Create the final lightweight image ---
 FROM eclipse-temurin:17-jre-jammy
-
-# Set the working directory
 WORKDIR /app
 
-# Copy the built JAR from the builder stage
-COPY --from=builder /app/build/libs/*.jar app.jar
+# Copy the built jar from the 'builder' stage
+COPY --from=builder /app/build/libs/java-triage-service-0.0.1-SNAPSHOT.jar app.jar
 
-# Expose the port
+# Expose the port (though not strictly needed for a Kafka consumer)
 EXPOSE 8080
 
 # Run the application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+CMD ["java", "-jar", "app.jar"]

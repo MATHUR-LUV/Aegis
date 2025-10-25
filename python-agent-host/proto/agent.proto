@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+// Set the Java package name
+option java_package = "com.aegis.proto";
+// Allow multiple Java files to be generated
+option java_multiple_files = true;
+
+// The main service our Python agent will host
+service AgentService {
+  // The method our Java app will call
+  rpc HandleIncident (IncidentRequest) returns (IncidentResponse) {}
+}
+
+// The message Java sends to Python
+message IncidentRequest {
+  string event_type = 1;
+  string user_id = 2;
+  string order_id = 3;
+  string full_event_json = 4; // The full JSON payload
+}
+
+// The message Python sends back to Java
+message IncidentResponse {
+  string status = 1; // e.g., "ACKNOWLEDGED"
+  string agent_response = 2; // e.g., "Agent is handling the incident"
+}
