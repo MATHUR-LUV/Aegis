@@ -1,0 +1,8 @@
+# The web server
+
+fastapi
+uvicorn
+
+# The PostgreSQL database driver
+
+psycopg2-binary

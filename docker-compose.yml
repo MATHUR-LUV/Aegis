@@ -1,7 +1,8 @@
-version: '3.8'
+version: '3.8' # You can remove this line if you get the "obsolete" warning
 
 services:
-  # 1. Zookeeper
+
+  # 1. Zookeeper (Kafka Dependency)
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.1
     container_name: zookeeper
@@ -11,7 +12,7 @@ services:
     ports:
       - "2181:2181"
 
-  # 2. Kafka
+  # 2. Kafka (Event Bus)
   kafka:
     image: confluentinc/cp-kafka:7.6.1
     container_name: kafka
@@ -19,7 +20,7 @@ services:
       - zookeeper
     ports:
       - "9092:9092"
-      - "29092:29092"
+      - "29092:29092" # Port for local connections
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
@@ -28,7 +29,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
 
-  # 3. Postgres
+  # 3. Postgres (Application Database)
   postgres:
     image: postgres:16
     container_name: postgres
@@ -41,7 +42,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
-  # 4. Elasticsearch
+  # 4. Elasticsearch (RAG Knowledge Base)
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.10.4
     container_name: elasticsearch
@@ -52,24 +53,24 @@ services:
     ports:
       - "9200:9200"
     volumes:
-      - elastic-data:/var/lib/elasticsearch/data
+      - elastic-data:/usr/share/elasticsearch/data
 
-  # 5. Java Triage Service
+  # 5. Java Triage Service (Kafka Consumer -> gRPC Client)
   java-triage-service:
     container_name: java-triage-service
+    # Build from the Dockerfile in this directory
     build:
       context: ./java-triage-service
       dockerfile: Dockerfile
+    # This service must wait for Kafka to be ready
     depends_on:
       - kafka
-    ports:
+    ports: # Exposing port is optional but can be useful for health checks
       - "8080:8080"
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: 'kafka:9092'
-      # Tell Java where the gRPC agent is
-      GRPC_AGENT_HOST: 'python-agent-host'
+    # Configuration is primarily handled in application.properties
+    restart: on-failure
 
-  # 6. Python AI Agent Host
+  # 6. Python AI Agent Host (gRPC Server -> LLM)
   python-agent-host:
     container_name: python-agent-host
     build:
@@ -77,15 +78,146 @@ services:
       dockerfile: Dockerfile
     ports:
       - "50051:50051" # Expose gRPC port
-    depends_on:
-      - kafka
-    # This lets the container talk to your host machine (where Ollama is)
+    # Depends_on Kafka is not strictly needed here
+    # This magic line lets the container talk to 'localhost' on your host machine
+    # 'host-gateway' is a special string
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    restart: on-failure
 
+  # 7. NEW: Python Payment Tool (MCP Tool)
+  payment-tool:
+    container_name: payment-tool
+    build: ./tools/payment-tool
+    # This tool is useless until the database is running
+    depends_on:
+      - postgres
+    environment:
+      # Pass in the DB credentials (must match 'postgres' service)
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=aegis_db
+      - DB_USER=aegis_user
+      - DB_PASSWORD=aegis_password
+    ports:
+      - "8000:8000" # Expose the tool's FastAPI port to our host
+    restart: on-failure
+
+# Define persistent volumes
 volumes:
   postgres-data:
   elastic-data:
+
+
+
+
+
+
+
+# version: '3.8'
+
+# services:
+#   # 1. Zookeeper
+#   zookeeper:
+#     image: confluentinc/cp-zookeeper:7.6.1
+#     container_name: zookeeper
+#     environment:
+#       ZOOKEEPER_CLIENT_PORT: 2181
+#       ZOOKEEPER_TICK_TIME: 2000
+#     ports:
+#       - "2181:2181"
+
+#   # 2. Kafka
+#   kafka:
+#     image: confluentinc/cp-kafka:7.6.1
+#     container_name: kafka
+#     depends_on:
+#       - zookeeper
+#     ports:
+#       - "9092:9092"
+#       - "29092:29092"
+#     environment:
+#       KAFKA_BROKER_ID: 1
+#       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+#       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+#       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+#       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+#       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+#   # 3. Postgres
+#   postgres:
+#     image: postgres:16
+#     container_name: postgres
+#     environment:
+#       POSTGRES_USER: aegis_user
+#       POSTGRES_PASSWORD: aegis_password
+#       POSTGRES_DB: aegis_db
+#     ports:
+#       - "5432:5432"
+#     volumes:
+#       - postgres-data:/var/lib/postgresql/data
+
+#   # 4. Elasticsearch
+#   elasticsearch:
+#     image: docker.elastic.co/elasticsearch/elasticsearch:8.10.4
+#     container_name: elasticsearch
+#     environment:
+#       - "discovery.type=single-node"
+#       - "xpack.security.enabled=false"
+#       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+#     ports:
+#       - "9200:9200"
+#     volumes:
+#       - elastic-data:/var/lib/elasticsearch/data
+
+#   # 5. Java Triage Service
+#   java-triage-service:
+#     container_name: java-triage-service
+#     build:
+#       context: ./java-triage-service
+#       dockerfile: Dockerfile
+#     depends_on:
+#       - kafka
+#     ports:
+#       - "8080:8080"
+#     environment:
+#       KAFKA_BOOTSTRAP_SERVERS: 'kafka:9092'
+#       # Tell Java where the gRPC agent is
+#       GRPC_AGENT_HOST: 'python-agent-host'
+
+#   # 6. Python AI Agent Host
+#   python-agent-host:
+#     container_name: python-agent-host
+#     build:
+#       context: ./python-agent-host
+#       dockerfile: Dockerfile
+#     ports:
+#       - "50051:50051" # Expose gRPC port
+#     depends_on:
+#       - kafka
+#     # This lets the container talk to your host machine (where Ollama is)
+#     extra_hosts:
+#       - "host.docker.internal:host-gateway"
+#   # 7. NEW: Python Payment Tool (MCP Tool)
+#   payment-tool:
+#     container_name: payment-tool
+#     build: ./tools/payment-tool
+#     # This tool is useless until the database is running
+#     depends_on:
+#       - postgres
+#     environment:
+#       # Pass in the DB credentials (must match 'postgres' service)
+#       - DB_HOST=postgres
+#       - DB_PORT=5432
+#       - DB_NAME=aegis_db
+#       - DB_USER=aegis_user
+#       - DB_PASSWORD=aegis_password
+#     ports:
+#       - "8000:8000" # Expose the tool's FastAPI port to our host
+#     restart: on-failure
+# volumes:
+#   postgres-data:
+#   elastic-data:
 
 
 # # This is the master control file for the Aegis project.

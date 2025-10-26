@@ -2,7 +2,7 @@ grpcio
 grpcio-tools
 ollama
 protobuf
-
+requests
 
 
 
