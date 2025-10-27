@@ -100,12 +100,16 @@ async def retry_payment(request: RetryPaymentRequest):
     """
     log.info(f"Received retry payment request for order {request.order_id} using method {request.payment_method_id}")
 
-    # Simple mock logic
-    if request.payment_method_id == "card_B_paypal":
-        log.info("Simulating SUCCESSFUL payment retry for PayPal.")
-        return RetryPaymentResponse(status="success", transaction_id=f"txn_{request.order_id}_paypal")
-    else:
-        log.warning(f"Simulating FAILED payment retry for method {request.payment_method_id}.")
-        return RetryPaymentResponse(status="failed", reason="Insufficient funds (mocked)")
+    # --- FORCE FAILURE for testing RAG ---
+    log.warning(f"Simulating FAILED payment retry for method {request.payment_method_id}.")
+    return RetryPaymentResponse(status="failed", reason="Insufficient funds (mocked)")
+# --- END FORCE FAILURE ---
+    # # Simple mock logic
+    # if request.payment_method_id == "card_B_paypal":
+    #     log.info("Simulating SUCCESSFUL payment retry for PayPal.")
+    #     return RetryPaymentResponse(status="success", transaction_id=f"txn_{request.order_id}_paypal")
+    # else:
+    #     log.warning(f"Simulating FAILED payment retry for method {request.payment_method_id}.")
+    #     return RetryPaymentResponse(status="failed", reason="Insufficient funds (mocked)")
 
 

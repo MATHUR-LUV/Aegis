@@ -1,0 +1,10 @@
+Policy ID: 112
+Subject: Handling Repeated Payment Failures
+
+If both the primary and backup payment methods fail consecutively for an order, DO NOT attempt further retries.
+The issue requires manual review.
+
+Procedure:
+1. Log the repeated failure event.
+2. Use the 'escalate_to_human' tool.
+3. Provide the 'order_id' and the reason 'Multiple payment failures require review'.

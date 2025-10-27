@@ -3,7 +3,8 @@ grpcio-tools
 ollama
 protobuf
 requests
-
+elasticsearch==8.16.0
+elastic-transport==8.15.1
 
 
 # gRPC libraries
